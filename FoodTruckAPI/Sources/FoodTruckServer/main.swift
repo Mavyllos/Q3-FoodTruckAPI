@@ -2,7 +2,6 @@ import Foundation
 import Kitura
 import HeliumLogger
 import LoggerAPI
-import Configuration
 import CloudFoundryEnv
 import FoodTruckAPI
 
@@ -23,13 +22,11 @@ do {
 let controller = FoodTruckController(backend: trucks)
 
 do {
-    let port = try CloudFoundryEnv.getApp.Env().port
+    let port = try CloudFoundryEnv.getAppEnv().port
     Log.verbose("Assigned port \(port)")
-    
+
     Kitura.addHTTPServer(onPort: port, with: controller.router)
     Kitura.run()
 } catch {
     Log.error("Server failed to start")
 }
-
-
