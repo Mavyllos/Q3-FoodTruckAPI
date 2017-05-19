@@ -115,6 +115,7 @@ public class FoodTruck: FoodTruckAPI {
         }
     }
     
+    // Get All Food Trucks
     public func getAllTrucks(completion: @escaping ([FoodTruckItem]?, Error?) -> Void) {
         let couchClient = CouchDBClient(connectionProperties: connectionProps)
         let database = couchClient.database(dbName)
@@ -150,5 +151,61 @@ public class FoodTruck: FoodTruckAPI {
             return FoodTruckItem(docId: id, name: name, foodType: foodType, avgCost: avgCost, latitude: latitude, longitude: longitude)
         }
         return trucks
+    }
+    
+    // Get One Food Truck
+    public func getTruck(docId: String, completion: @escaping (FoodTruckItem?, Error?) -> Void) {
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        let database = couchClient.database(dbName)
+        
+        database.retrieve(docId) { (doc, err) in
+            guard let doc = doc,
+                let docId = doc["id"].string,
+                let name = doc["name"].string,
+                let foodType = doc["foodtype"].string,
+                let avgCost = doc["avgcost"].float,
+                let latitude = doc["latitude"].float,
+                let longitude = doc["longitude"].float else {
+                    completion(nil, err)
+                    return
+            }
+            
+            let truckItem = FoodTruckItem(docId: docId, name: name, foodType: foodType, avgCost: avgCost, latitude: latitude, longitude: longitude)
+            completion(truckItem, nil)
+        }
+    }
+    
+    // Add New Food Truck
+    public func addTruck(name: String, foodType: String, avgCost: Float, latitude: Float, longitude: Float, completion: @escaping (FoodTruckItem?, Error?) -> Void) {
+        let json: [String:Any] = [
+            "type": "foodtruck",
+            "name": name,
+            "foodtype": "foodType",
+            "avgcost": avgCost,
+            "latitude": latitude,
+            "longitude": longitude
+        ]
+        
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        let database = couchClient.database(dbName)
+        
+        database.create(JSON(json)) { (id, rev, doc, err) in
+            if let id = id {
+                let truckItem = FoodTruckItem(docId: id, name: name, foodType: foodType, avgCost: avgCost, latitude: latitude, longitude: longitude)
+                completion(truckItem, nil)
+            } else {
+                completion(nil, err)
+            }
+        }
+    }
+    
+    // Clear All Food Trucks
+    public func clearAll(completion: @escaping (Error?) -> Void) {
+        
+    }
+    
+    // Delete All Food Trucks
+    public func deleteTruck(docId: String, completion: @escaping (Error?) -> Void) {
+        
     }
 }
