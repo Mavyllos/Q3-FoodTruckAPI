@@ -32,6 +32,9 @@ public final class FoodTruckController {
         // New Truck
         router.post(trucksPath, handler: addTruck)
         
+        // Truck Count
+        router.get("\(trucksPath)/count", handler: getTruckCount)
+        
         // Get One Truck
         router.get("\(trucksPath)/:id", handler: getTruckById)
         
@@ -201,6 +204,27 @@ public final class FoodTruckController {
                     Log.error("Invalid Truck Returned")
                     try response.status(.badRequest).end()
                 }
+            } catch {
+                Log.error("Communications Error")
+            }
+        }
+    }
+    
+    private func getTruckCount(request: RouterRequest, response: RouterResponse, next: () -> Void) {
+        trucks.countTrucks { (count, err) in
+            do {
+                guard err == nil else {
+                    try response.status(.badRequest).end()
+                    Log.error(err.debugDescription)
+                    return
+                }
+                guard let count = count else {
+                    try response.status(.internalServerError).end()
+                    Log.error("Failed to get count")
+                    return
+                }
+                let json = JSON(["count": count])
+                try response.status(.OK).send(json: json).end()
             } catch {
                 Log.error("Communications Error")
             }

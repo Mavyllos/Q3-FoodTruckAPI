@@ -17,6 +17,9 @@ public protocol FoodTruckAPI {
     func deleteTruck(docId: String, completion: @escaping (Error?) -> Void)
     
     // Update One Food Truck
+    // Similar to the add but with ? to make the values optional
     func updateTruck(docId: String, name: String?, foodType: String?, avgCost: Float?, latitude: Float?, longitude: Float?, completion: @escaping (FoodTruckItem?, Error?) -> Void)
     
+    // Get Count of all Trucks
+    func countTrucks(completion: @escaping (Int?, Error?) -> Void)
 }

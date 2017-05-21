@@ -76,17 +76,17 @@ public class FoodTruck: FoodTruckAPI {
     // look for db, if exists log ok, if not lof error and try to create db. if db returned from create, log ok, if not log error.
     private func setupDb() {
         let couchClient = CouchDBClient(connectionProperties: self.connectionProps)
-        couchClient.dbExists(dbName) { (exists, error) in
+        couchClient.dbExists(dbName) { (exists, err) in
             if (exists) {
                 Log.info("DB exists")
             } else {
-                Log.error("DB does not exist \(String(describing: error))")
-                couchClient.createDB(self.dbName, callback:  { (db, Error) in
+                Log.error("DB does not exist \(String(describing: err))")
+                couchClient.createDB(self.dbName, callback:  { (db, err) in
                     if (db != nil) {
                         Log.info("DB created!")
                             self.setupDbDesign(db: db!)
                     } else {
-                        Log.error("Unable to create DB \(self.dbName): Error \(String(describing: error))")
+                        Log.error("Unable to create DB \(self.dbName): Error \(String(describing: err))")
                     }
                 })
             }
@@ -95,17 +95,17 @@ public class FoodTruck: FoodTruckAPI {
     
     private func setupDB() {
         let couchClient = CouchDBClient(connectionProperties: connectionProps)
-        couchClient.dbExists(dbName) { (exists, error) in
+        couchClient.dbExists(dbName) { (exists, err) in
             if exists {
                 Log.info("DB exists")
             } else {
                 Log.error("DB does not exist")
-                couchClient.createDB(self.dbName, callback: { (db, error) in
+                couchClient.createDB(self.dbName, callback: { (db, err) in
                     if db != nil {
                         Log.info("DB created!")
                         self.setupDbDesign(db: db!)
                     } else {
-                        Log.error("Unable to create DB \(self.dbName): Error \(error!)")
+                        Log.error("Unable to create DB \(self.dbName): Error \(err!)")
                     }
                 })
             }
@@ -129,9 +129,9 @@ public class FoodTruck: FoodTruckAPI {
             ]
         ]
         
-        db.createDesign(self.designName, document: JSON(design)) { (json, error) in
-            if error != nil {
-                Log.error("Failed to create design: \(String(describing: error))")
+        db.createDesign(self.designName, document: JSON(design)) { (json, err) in
+            if err != nil {
+                Log.error("Failed to create design: \(String(describing: err))")
             } else {
                 Log.info("Design created: \(String(describing: json))")
             }
@@ -299,7 +299,8 @@ public class FoodTruck: FoodTruckAPI {
     public func updateTruck(docId: String, name: String?, foodType: String?, avgCost: Float?, latitude: Float?, longitude: Float?, completion: @escaping (FoodTruckItem?, Error?) -> Void) {
         let couchClient = CouchDBClient(connectionProperties: connectionProps)
         let database = couchClient.database(dbName)
-        database.retrieve(docId) { (doc, error) in
+        
+        database.retrieve(docId) { (doc, err) in
             guard let doc = doc else {
                 completion(nil, APICollectionError.AuthError)
                 return
@@ -309,6 +310,7 @@ public class FoodTruck: FoodTruckAPI {
                 return
             }
             let type = "foodtruck"
+            // pattern = new value or/?? existing ["value"].whatevs
             let name = name ?? doc["name"].stringValue
             let foodType = foodType ?? doc["foodtype"].stringValue
             let avgCost = avgCost ?? doc["avgcosr"].floatValue
@@ -322,13 +324,31 @@ public class FoodTruck: FoodTruckAPI {
                 "latitude": latitude,
                 "longitude": longitude
             ]
-            database.update(docId, rev: rev, document: JSON(json), callback: { (rev, doc, error) in
-                guard error == nil else {
-                    completion(nil, error)
+            database.update(docId, rev: rev, document: JSON(json), callback: { (rev, doc, err) in
+                guard err == nil else {
+                    completion(nil, err)
                     return
                 }
                 completion(FoodTruckItem(docId: docId, name: name, foodType: foodType, avgCost: avgCost, latitude: latitude, longitude: longitude), nil)
             })
+        }
+    }
+    // Count of all Food Trucks
+    public func countTrucks(completion: @escaping (Int?, Error?) -> Void) {
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        let database = couchClient.database(dbName)
+        
+        database.queryByView("total_trucks", ofDesign: "foodtruckdesign", usingParameters: []) { (doc, err) in
+            if let doc = doc, err == nil {
+                // takes the document we get back and drills down to the value
+                if let count = doc["rows"][0]["value"].int {
+                    completion(count, nil)
+                } else {
+                    completion(0, nil)
+                }
+            } else {
+                completion(nil, err)
+            }
         }
     }
 }
