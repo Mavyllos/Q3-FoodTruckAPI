@@ -119,21 +119,32 @@ public class FoodTruck: FoodTruckAPI {
                 "all_documents": [
                     "map": "function(doc) { emit(doc._id, [doc._id, doc._rev]); }"
                 ],
-            "all_trucks": [
-                "map": "function(doc) { if (doc.type == 'foodtruck') { emit(doc._id, [doc._id, doc.name, doc.foodtype, doc.avgcost, doc.latitude, doc.longitude]); }}"
+                "all_trucks": [
+                    "map": "function(doc) { if (doc.type == 'foodtruck') { emit(doc._id, [doc._id, doc.name, doc.foodtype, doc.avgcost, doc.latitude, doc.longitude]); }}"
                 ],
-            "total_trucks": [
-                "map": "function(doc) { if (doc.type == 'foodtruck') { emit(doc._id, 1);}}",
-                "reduce": "_count"
+                "total_trucks": [
+                    "map": "function(doc) { if (doc.type == 'foodtruck') { emit(doc._id, 1); }}",
+                    "reduce": "_count"
+                ],
+                "all_reviews": [
+                    "map": "function(doc) { if (doc.type == 'review') { emit(doc.truckid, [doc._id, doc.truckid, doc.reviewtitle, doc.reviewtext, doc.starrating]); }}"
+                ],
+                "total_reviews": [
+                    "map": "function(doc) { if (doc.type == 'review') { emit(doc.truckid, 1); }}",
+                    "reduce": "_count"
+                ],
+                "avg_rating": [
+                    "map": "function(doc) { if (doc.type == 'review') { emit(doc.truckid, doc.starrating); }}",
+                    "reduce": "_stats"
                 ]
             ]
         ]
         
-        db.createDesign(self.designName, document: JSON(design)) { (json, err) in
-            if err != nil {
-                Log.error("Failed to create design: \(String(describing: err))")
+        db.createDesign(self.designName, document: JSON(design)) { (json, error) in
+            if error != nil {
+                Log.error("Failed to create design: \(error)")
             } else {
-                Log.info("Design created: \(String(describing: json))")
+                Log.info("Design created: \(json)")
             }
         }
     }
@@ -258,14 +269,13 @@ public class FoodTruck: FoodTruckAPI {
     
     func getIdAndRev(_ document: JSON) throws -> [(String, String)] {
         guard let rows = document["rows"].array else {
-        throw APICollectionError.ParseError
+            throw APICollectionError.ParseError
         }
         
         return rows.flatMap {
             let doc = $0["doc"]
             let id = doc["_id"].stringValue
             let rev = doc["_rev"].stringValue
-            //this returns the tuple [(String, String)] above
             return (id, rev)
         }
     }
@@ -282,7 +292,23 @@ public class FoodTruck: FoodTruckAPI {
                 return
             }
             
-            // Fetch all reviews will go here
+            // Fetch all reviews for the truck
+            self.getReviews(truckId: docId, completion: { (reviews, err) in
+                guard let reviews = reviews, err == nil else {
+                    completion(err)
+                    return
+                }
+                // Step through each review in the array
+                for review in reviews {
+                    // Then delete this particular review
+                    self.deleteReview(docId: review.docId, completion: { (err) in
+                        guard err == nil else {
+                            completion(nil)
+                            return
+                        }
+                    })
+                }
+            })
             
             let rev = doc["_rev"].stringValue
             database.delete(docId, rev: rev) { (err) in
@@ -333,6 +359,7 @@ public class FoodTruck: FoodTruckAPI {
             })
         }
     }
+    
     // Count of all Food Trucks
     public func countTrucks(completion: @escaping (Int?, Error?) -> Void) {
         let couchClient = CouchDBClient(connectionProperties: connectionProps)
@@ -345,6 +372,210 @@ public class FoodTruck: FoodTruckAPI {
                     completion(count, nil)
                 } else {
                     completion(0, nil)
+                }
+            } else {
+                completion(nil, err)
+            }
+        }
+    }
+    
+    // All Reviews for a specfic truck
+    public func getReviews(truckId: String, completion: @escaping ([ReviewItem]?, Error?) -> Void) {
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        let database = couchClient.database(dbName)
+        
+        database.queryByView("all_reviews", ofDesign: designName, usingParameters: [.keys([truckId as Valuetype]), .descending(true), .includeDocs(true)]) { (doc, err) in
+            if let doc = doc, err == nil {
+                do {
+                    let reviews = try self.parseReviews(doc)
+                    completion(reviews, nil)
+                } catch {
+                    completion(nil, err)
+                }
+            }
+            completion(nil, err)
+        }
+    }
+    
+    func parseReviews(_ document: JSON) throws -> [ReviewItem] {
+        guard let rows = document["rows"].array else {
+            throw APICollectionError.ParseError
+        }
+        
+        let reviews: [ReviewItem] = rows.flatMap {
+            let doc = $0["value"]
+            guard let id = doc[0].string,
+                let truckId = doc[1].string,
+                let reviewTitle = doc[2].string,
+                let reviewText = doc[3].string,
+                let starRating = doc[4].int else {
+                    return nil
+            }
+            return ReviewItem(docId: id, truckId: truckId, title: reviewTitle, reviewText: reviewText, starRating: starRating)
+        }
+        return reviews
+    }
+    
+    // Specific review by id
+    public func getReview(docId: String, completion: @escaping (ReviewItem?, Error?) -> Void) {
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        let database = couchClient.database(dbName)
+        
+        database.retrieve(docId) { (doc, err) in
+            guard let doc = doc else {
+                completion(nil, err)
+                return
+            }
+            
+            guard let docId = doc["_id"].string,
+                let truckId = doc["truckid"].string,
+                let reviewTitle = doc["reviewtitle"].string,
+                let reviewText = doc["reviewtext"].string,
+                let starRating = doc["starrating"].int else {
+                    completion(nil, err)
+                    return
+            }
+            
+            let reviewItem = ReviewItem(docId: docId, truckId: truckId, title: reviewTitle, reviewText: reviewText, starRating: starRating)
+            completion(reviewItem, nil)
+        }
+    }
+    
+    // Add review for a specific truck
+    public func addReview(truckId: String, reviewTitle: String, reviewText: String, reviewStarRating: Int, completion: @escaping (ReviewItem?, Error?) -> Void) {
+        
+        let json: [String: Any] = [
+            "type": "review",
+            "truckid": truckId,
+            "reviewtitle": reviewTitle,
+            "reviewtext": reviewText,
+            "starrating": reviewStarRating
+        ]
+        
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        let database = couchClient.database(dbName)
+        
+        database.create(JSON(json)) { (id, rev, doc, err) in
+            if let id = id {
+                let reviewItem = ReviewItem(docId: id, truckId: truckId, title: reviewTitle, reviewText: reviewText, starRating: reviewStarRating)
+                completion(reviewItem, nil)
+            } else {
+                completion(nil, err)
+            }
+        }
+    }
+    
+    // Update a specific review
+    public func updateReview(docId: String, truckId: String?, reviewTitle: String?, reviewText: String?, starRating: Int?, completion: @escaping (ReviewItem?, Error?) -> Void) {
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        let database = couchClient.database(dbName)
+        
+        database.retrieve(docId) { (doc, err) in
+            guard let doc = doc else {
+                completion(nil, APICollectionError.AuthError)
+                return
+            }
+            
+            guard let rev = doc["_rev"].string else {
+                completion(nil, APICollectionError.ParseError)
+                return
+            }
+            
+            let type = "review"
+            let truckId = truckId ?? doc["truckid"].stringValue
+            let reviewTitle = reviewTitle ?? doc["reviewtitle"].stringValue
+            let reviewText = reviewText ?? doc["reviewtext"].stringValue
+            let starRating = starRating ?? doc["starrating"].intValue
+            
+            let json: [String: Any] = [
+                "type": type,
+                "truckid": truckId,
+                "reviewtitle": reviewTitle,
+                "reviewtext": reviewText,
+                "starrating": starRating
+            ]
+            
+            database.update(docId, rev: rev, document: JSON(json), callback: { (rev, doc, err) in
+                guard err == nil else {
+                    completion(nil, err)
+                    return
+                }
+                
+                completion(ReviewItem(docId: docId, truckId: truckId, title: reviewTitle, reviewText: reviewText, starRating: starRating), nil)
+            })
+        }
+    }
+    
+    // Delete specific review
+    public func deleteReview(docId: String, completion: @escaping (Error?) -> Void) {
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        let database = couchClient.database(dbName)
+        
+        database.retrieve(docId) { (doc, err) in
+            guard let doc = doc, err == nil else {
+                completion(err)
+                return
+            }
+            
+            let rev = doc["_rev"].stringValue
+            database.delete(docId, rev: rev, callback: { (err) in
+                if err != nil {
+                    completion(err)
+                } else {
+                    completion(nil)
+                }
+            })
+        }
+    }
+    
+    // Count of ALL reviews
+    public func countReviews(completion: @escaping (Int?, Error?) -> Void) {
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        let database = couchClient.database(dbName)
+        
+        database.queryByView("total_reviews", ofDesign: designName, usingParameters: []) { (doc, err) in
+            if let doc = doc, err == nil {
+                if let count = doc["rows"][0]["value"].int {
+                    completion(count, nil)
+                } else {
+                    completion(0, nil)
+                }
+            } else {
+                completion(nil, err)
+            }
+        }
+    }
+    
+    // Count of reviews for a SPECIFIC truck
+    public func countReviews(truckId: String, completion: @escaping (Int?, Error?) -> Void) {
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        let database = couchClient.database(dbName)
+        
+        database.queryByView("total_reviews", ofDesign: designName, usingParameters: [.keys([truckId as Valuetype])]) { (doc, err) in
+            if let doc = doc, err == nil {
+                if let count = doc["rows"][0]["value"].int {
+                    completion(count, nil)
+                } else {
+                    completion(0, nil)
+                }
+            } else {
+                completion(nil, err)
+            }
+        }
+    }
+    
+    // Average star rating for a specific truck
+    public func averageRating(truckId: String, completion: @escaping (Int?, Error?) -> Void) {
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        let database = couchClient.database(dbName)
+        
+        database.queryByView("avg_rating", ofDesign: designName, usingParameters: [.keys([truckId as Valuetype])]) { (doc, err) in
+            if let doc = doc, err == nil {
+                if let sum = doc["rows"][0]["value"]["sum"].float, let count = doc["rows"][0]["value"]["count"].float {
+                    let avg = Int(round(sum / count))
+                    completion(avg, nil)
+                } else {
+                    completion(1, nil)
                 }
             } else {
                 completion(nil, err)

@@ -1,3 +1,11 @@
+//
+//  main.swift
+//  FoodTruckAPI
+//
+//  Created by Summer Barclay on 5/19/17.
+//
+//
+
 import Foundation;
 import Kitura;
 import HeliumLogger;
