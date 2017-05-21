@@ -34,6 +34,9 @@ public final class FoodTruckController {
         
         // Get One Truck
         router.get("\(trucksPath)/:id", handler: getTruckById)
+        
+        // Delete Truck
+        router.delete("\(trucksPath)/:id", handler: deleteTruckById)
     }
     
     private func getTrucks(request: RouterRequest, response: RouterResponse, next: () -> Void) {
@@ -134,6 +137,28 @@ public final class FoodTruckController {
             } catch {
                 Log.error("Communications Error")
                 
+            }
+        }
+    }
+    
+    private func deleteTruckById(request: RouterRequest, response: RouterResponse, next: () -> Void) {
+        guard let docId = request.parameters["id"] else {
+            response.status(.badRequest)
+            Log.warning("ID not found in request")
+            return
+        }
+        
+        trucks.deleteTruck(docId: docId) { (err) in
+            do {
+                guard err == nil else {
+                    try response.status(.badRequest).end()
+                    Log.error(err.debugDescription)
+                    return
+                }
+                try response.status(.OK).end()
+                Log.info("Doc ID successfully deleted")
+            } catch {
+                Log.error("Communication error")
             }
         }
     }

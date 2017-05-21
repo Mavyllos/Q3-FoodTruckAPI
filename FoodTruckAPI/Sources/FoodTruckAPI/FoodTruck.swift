@@ -201,11 +201,74 @@ public class FoodTruck: FoodTruckAPI {
     
     // Clear All Food Trucks
     public func clearAll(completion: @escaping (Error?) -> Void) {
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        let database = couchClient.database(dbName)
         
+        database.queryByView("all documents", ofDesign: "foodtruckdesign", usingParameters: [.descending(true), .includeDocs(true)]) { (doc, err) in
+            guard let doc = doc else {
+                completion(err)
+                return
+            }
+            
+            guard let idAndRev = try? self.getIdAndRev(doc) else {
+                completion(err)
+                return
+            }
+            
+            if idAndRev.count == 0 {
+                completion(nil)
+            } else {
+                for i in 0...idAndRev.count - 1 {
+                    let truck = idAndRev[i]
+                    
+                    database.delete(truck.0, rev: truck.1, callback: { (err) in
+                        guard err == nil else {
+                            completion(err)
+                            return
+                        }
+                        completion(nil)
+                        })
+                }
+            }
+        }
+    }
+    
+    func getIdAndRev(_ document: JSON) throws -> [(String, String)] {
+        guard let rows = document["rows"].array else {
+        throw APICollectionError.ParseError
+        }
+        
+        return rows.flatMap {
+            let doc = $0["doc"]
+            let id = doc["_id"].stringValue
+            let rev = doc["_rev"].stringValue
+            //this returns the tuple [(String, String)] above
+            return (id, rev)
+        }
     }
     
     // Delete All Food Trucks
     public func deleteTruck(docId: String, completion: @escaping (Error?) -> Void) {
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        let database = couchClient.database(dbName)
         
+        //retrieves the truck and the revision so that it can be deleted
+        database.retrieve(docId) { (doc, err) in
+            guard let doc = doc, err == nil else {
+                completion(err)
+                return
+            }
+            
+            // Fetch all reviews will go here
+            
+            let rev = doc["_rev"].stringValue
+            database.delete(docId, rev: rev) { (err) in
+                if err != nil {
+                    completion(err)
+                } else {
+                    completion(nil)
+                }
+            }
+        }
     }
 }
