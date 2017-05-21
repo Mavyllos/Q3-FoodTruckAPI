@@ -26,7 +26,7 @@ public enum APICollectionError: Error {
 
 public class FoodTruck: FoodTruckAPI {
 
-    static let defaultDBHost = "0.0.0.0"
+    static let defaultDBHost = "localhost"
     static let defaultDBPort = UInt16(5984)
     static let defaultDBName = "foodtruckapi"
     static let defaultUsername = "summer"
@@ -50,7 +50,10 @@ public class FoodTruck: FoodTruckAPI {
         let port: UInt16
         let databaseName: String = "foodtruckapi"
 
-        if let credentials = service.credentials, let tempHost = credentials["host"] as? String, let tempUsername = credentials["username"] as? String, let tempPassword = credentials["password"] as? String, let tempPort = credentials["port"] as? Int {
+        if let credentials = service.credentials,
+            let tempHost = credentials["host"] as? String,
+            let tempUsername = credentials["username"] as? String,
+            let tempPassword = credentials["password"] as? String, let tempPort = credentials["port"] as? Int {
 
             host = tempHost
             username = tempUsername
@@ -59,7 +62,7 @@ public class FoodTruck: FoodTruckAPI {
             Log.info("Using CF Service Credentials")
 
             } else {
-                host = "0.0.0.0"
+                host = "localhost"
                 username = "summer"
                 password = "qweasd"
                 port = UInt16(5984)
@@ -84,6 +87,25 @@ public class FoodTruck: FoodTruckAPI {
                             self.setupDbDesign(db: db!)
                     } else {
                         Log.error("Unable to create DB \(self.dbName): Error \(String(describing: error))")
+                    }
+                })
+            }
+        }
+    }
+    
+    private func setupDB() {
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        couchClient.dbExists(dbName) { (exists, error) in
+            if exists {
+                Log.info("DB exists")
+            } else {
+                Log.error("DB does not exist")
+                couchClient.createDB(self.dbName, callback: { (db, error) in
+                    if db != nil {
+                        Log.info("DB created!")
+                        self.setupDbDesign(db: db!)
+                    } else {
+                        Log.error("Unable to create DB \(self.dbName): Error \(error!)")
                     }
                 })
             }
@@ -161,7 +183,7 @@ public class FoodTruck: FoodTruckAPI {
         
         database.retrieve(docId) { (doc, err) in
             guard let doc = doc,
-                let docId = doc["id"].string,
+                let docId = doc["_id"].string,
                 let name = doc["name"].string,
                 let foodType = doc["foodtype"].string,
                 let avgCost = doc["avgcost"].float,
@@ -205,7 +227,7 @@ public class FoodTruck: FoodTruckAPI {
         let couchClient = CouchDBClient(connectionProperties: connectionProps)
         let database = couchClient.database(dbName)
         
-        database.queryByView("all documents", ofDesign: "foodtruckdesign", usingParameters: [.descending(true), .includeDocs(true)]) { (doc, err) in
+        database.queryByView("all_documents", ofDesign: "foodtruckdesign", usingParameters: [.descending(true), .includeDocs(true)]) { (doc, err) in
             guard let doc = doc else {
                 completion(err)
                 return
@@ -270,6 +292,43 @@ public class FoodTruck: FoodTruckAPI {
                     completion(nil)
                 }
             }
+        }
+    }
+    
+    // Update One Food Truck
+    public func updateTruck(docId: String, name: String?, foodType: String?, avgCost: Float?, latitude: Float?, longitude: Float?, completion: @escaping (FoodTruckItem?, Error?) -> Void) {
+        let couchClient = CouchDBClient(connectionProperties: connectionProps)
+        let database = couchClient.database(dbName)
+        database.retrieve(docId) { (doc, error) in
+            guard let doc = doc else {
+                completion(nil, APICollectionError.AuthError)
+                return
+            }
+            guard let rev = doc["_rev"].string else {
+                completion(nil, APICollectionError.ParseError)
+                return
+            }
+            let type = "foodtruck"
+            let name = name ?? doc["name"].stringValue
+            let foodType = foodType ?? doc["foodtype"].stringValue
+            let avgCost = avgCost ?? doc["avgcosr"].floatValue
+            let latitude = latitude ?? doc["latitude"].floatValue
+            let longitude = longitude ?? doc["longitude"].floatValue
+            let json: [String: Any] = [
+                "type": type,
+                "name": name,
+                "foodtype": foodType,
+                "avgcost": avgCost,
+                "latitude": latitude,
+                "longitude": longitude
+            ]
+            database.update(docId, rev: rev, document: JSON(json), callback: { (rev, doc, error) in
+                guard error == nil else {
+                    completion(nil, error)
+                    return
+                }
+                completion(FoodTruckItem(docId: docId, name: name, foodType: foodType, avgCost: avgCost, latitude: latitude, longitude: longitude), nil)
+            })
         }
     }
 }

@@ -37,6 +37,9 @@ public final class FoodTruckController {
         
         // Delete Truck
         router.delete("\(trucksPath)/:id", handler: deleteTruckById)
+        
+        // Update Truck
+        router.put("\(trucksPath)/:id", handler: updateTruckById)
     }
     
     private func getTrucks(request: RouterRequest, response: RouterResponse, next: () -> Void) {
@@ -159,6 +162,47 @@ public final class FoodTruckController {
                 Log.info("Doc ID successfully deleted")
             } catch {
                 Log.error("Communication error")
+            }
+        }
+    }
+    
+    private func updateTruckById(request: RouterRequest, response: RouterResponse, next: () -> Void) {
+        guard let docId = request.parameters["id"] else {
+            response.status(.badRequest)
+            Log.error("ID Not found in request")
+            return
+        }
+        guard let body = request.body else {
+            response.status(.badRequest)
+            Log.error("No Body found in request")
+            return
+        }
+        guard case let .json(json) = body else {
+            response.status(.badRequest)
+            Log.error("Invalid JSON data supplied")
+            return
+        }
+        let name: String? = json["name"].stringValue == "" ? nil : json["name"].stringValue
+        let foodType: String? = json["foodtype"].stringValue == "" ? nil : json["foodtype"].stringValue
+        let avgCost: Float? = json["avgcost"].floatValue == 0 ? nil : json["avgcost"].floatValue
+        let latitude: Float? = json["latitude"].floatValue == 0 ? nil : json["latitude"].floatValue
+        let longitude: Float? = json["longitude"].floatValue == 0 ? nil : json["longitude"].floatValue
+        trucks.updateTruck(docId: docId, name: name, foodType: foodType, avgCost: avgCost, latitude: latitude, longitude: longitude) { (updatedTruck, error) in
+            do {
+                guard error == nil else {
+                    try response.status(.badRequest).end()
+                    Log.error(error.debugDescription)
+                    return
+                }
+                if let updatedTruck = updatedTruck {
+                    let result = JSON(updatedTruck.toDict())
+                    try response.status(.OK).send(json: result).end()
+                } else {
+                    Log.error("Invalid Truck Returned")
+                    try response.status(.badRequest).end()
+                }
+            } catch {
+                Log.error("Communications Error")
             }
         }
     }

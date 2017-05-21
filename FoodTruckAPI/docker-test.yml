@@ -1,0 +1,17 @@
+db:
+  image: klaemo/couchdb:2.0.0
+  ports:
+    - "5984:5984"
+  environment:
+    - COUCHDB_USER=summer
+    - COUCHDB_PASSWORD=qweasd
+
+app:
+  image: ibmcom/swift-ubuntu
+  ports:
+    - "8080:8080"
+  volumes:
+    - .:/Users/summerbarclay/galvanize/unit-3/swift/FoodTruck/FoodTruckAPI
+  command: bash -c "cd /Users/summerbarclay/galvanize/unit-3/swift/FoodTruck/FoodTruckAPI && swift package clean && swift build --configuration release && ./.build/release/FoodTruckServer"
+  links:
+    - db:localhost

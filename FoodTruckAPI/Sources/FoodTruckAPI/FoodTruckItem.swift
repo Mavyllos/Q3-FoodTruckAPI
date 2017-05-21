@@ -17,28 +17,28 @@ protocol DictionaryConvertable {
 public struct FoodTruckItem {
     
     // ID
-    public let docId: String
+    public let docId: String;
     
     // Name of Food Truck Buisness
-    public let name: String
+    public let name: String;
     
     // Food Type
-    public let foodType: String
+    public let foodType: String;
     
     // Average Cost
-    public let avgCost: Float
+    public let avgCost: Float;
     
     // Coordinates for map
-    public let latitude: Float
-    public let longitude: Float
+    public let latitude: Float;
+    public let longitude: Float;
     
     public init(docId: String, name: String, foodType: String, avgCost: Float, latitude: Float, longitude: Float) {
-        self.docId = docId
-        self.name = name
-        self.foodType = foodType
-        self.avgCost = avgCost
-        self.latitude = latitude
-        self.longitude = longitude
+        self.docId = docId;
+        self.name = name;
+        self.foodType = foodType;
+        self.avgCost = avgCost;
+        self.latitude = latitude;
+        self.longitude = longitude;
     }
 }
 
@@ -61,12 +61,12 @@ extension FoodTruckItem: Equatable {
 extension FoodTruckItem: DictionaryConvertable {
     func toDict() -> JSONDictionary {
         var result = JSONDictionary()
-        result["id"] = self.docId
-        result["name"] = self.name
-        result["foodtype"] = self.foodType
-        result["avgcost"] = self.avgCost
-        result["latitude"] = self.latitude
-        result["longitude"] = self.longitude
+        result["id"] = self.docId;
+        result["name"] = self.name;
+        result["foodtype"] = self.foodType;
+        result["avgcost"] = self.avgCost;
+        result["latitude"] = self.latitude;
+        result["longitude"] = self.longitude;
         
         return result
     }
