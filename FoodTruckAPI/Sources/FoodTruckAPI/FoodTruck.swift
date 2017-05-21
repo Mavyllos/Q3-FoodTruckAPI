@@ -10,6 +10,7 @@ import Foundation
 import SwiftyJSON
 import LoggerAPI
 import CouchDB
+import Configuration
 import CloudFoundryEnv
 
 #if os(Linux)
@@ -25,11 +26,11 @@ public enum APICollectionError: Error {
 
 public class FoodTruck: FoodTruckAPI {
 
-    static let defaultDBHost = "localhost"
+    static let defaultDBHost = "0.0.0.0"
     static let defaultDBPort = UInt16(5984)
     static let defaultDBName = "foodtruckapi"
     static let defaultUsername = "summer"
-    static let defaultPassword = "123456"
+    static let defaultPassword = "qweasd"
 
     let dbName = "foodtruckapi"
     let designName = "foodtruckdesign"
@@ -58,9 +59,9 @@ public class FoodTruck: FoodTruckAPI {
             Log.info("Using CF Service Credentials")
 
             } else {
-                host = "localhost"
+                host = "0.0.0.0"
                 username = "summer"
-                password = "123456"
+                password = "qweasd"
                 port = UInt16(5984)
                 Log.info("Using Service Developement Credentials")
             }

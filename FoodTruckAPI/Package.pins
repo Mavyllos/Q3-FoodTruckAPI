@@ -10,8 +10,14 @@
     {
       "package": "CloudFoundryEnv",
       "reason": null,
-      "repositoryURL": "https://github.com/IBM-Swift/Swift-cfenv",
-      "version": "2.0.3"
+      "repositoryURL": "https://github.com/IBM-Swift/Swift-cfenv.git",
+      "version": "4.0.2"
+    },
+    {
+      "package": "Configuration",
+      "reason": null,
+      "repositoryURL": "https://github.com/IBM-Swift/Configuration.git",
+      "version": "1.0.0"
     },
     {
       "package": "HeliumLogger",

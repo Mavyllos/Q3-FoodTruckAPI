@@ -9,7 +9,9 @@
 import Foundation
 import LoggerAPI
 import CouchDB
+import Configuration
 import CloudFoundryEnv
+
 
 struct ConfigError: LocalizedError {
     var errorDescription: String? {
@@ -18,20 +20,19 @@ struct ConfigError: LocalizedError {
 }
 
 func getConfig() throws -> Service {
-    var appEnv: AppEnv?
-
+    let appEnv = ConfigurationManager()
+    appEnv.load(.environmentVariables)
     do {
         Log.warning("Attempting to retrieve CF Env")
-        appEnv = try CloudFoundryEnv.getAppEnv()
-
-        let services = appEnv!.getServices()
+        let services = appEnv.getServices()
         let servicePair = services.filter { element in element.value.label == "cloudantNoSQLDB" }.first
         guard let service = servicePair?.value else {
             throw ConfigError()
         }
         return service
     } catch {
-        Log.warning("An error occurred while trying to retrieve configs")
+        Log.warning("An error occured while trying to retrieve configs")
         throw ConfigError()
     }
 }
+
