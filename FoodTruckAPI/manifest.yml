@@ -3,8 +3,8 @@ applications:
    memory: 256M
    instances: 1
    domain: mybluemix.net
-   name: FoodTruckAPI Server
-   host: FoodTruckAPI-Server
+   name: FoodTruckAPI-Mavyllos
+   host: FoodTruckAPI-Mavyllos
    disk_quota: 1024M
    buildpack: swift_buildpack
    command: FoodTruckServer
